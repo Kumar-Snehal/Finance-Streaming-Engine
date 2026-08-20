@@ -10,6 +10,9 @@ echo "[1/4] Starting Docker infrastructure..."
 cd "$PROJECT_ROOT"
 sudo docker compose up -d
 
+echo "⏳ Waiting 15 seconds for Redpanda and TimescaleDB to fully initialize..."
+sleep 15
+
 cleanup() {
     echo ""
     echo "=========================================="
