@@ -7,24 +7,27 @@ from kafka import KafkaProducer
 import market_tick_pb2
 
 # Target configuration
-BOOTSTRAP_SERVERS = ['localhost:19092']
-TOPIC_NAME = 'market-ticks-proto'
-TICKERS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA']
+BOOTSTRAP_SERVERS = ["localhost:19092"]
+TOPIC_NAME = "market-ticks-proto"
+TICKERS = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA"]
 
 shutdown_flag = threading.Event()
 
 # Set up an asynchronous, high-throughput producer
 producer = KafkaProducer(
     bootstrap_servers=BOOTSTRAP_SERVERS,
-    linger_ms=10,        # Batch packets for 10 ms then transmit
-    batch_size=32 * 1024 # 32 KB batch size
+    linger_ms=10,  # Batch packets for 10 ms then transmit
+    batch_size=32 * 1024,  # 32 KB batch size
 )
 
+
 def on_success(record_metadata):
-    pass 
+    pass
+
 
 def on_error(ex):
     print(f"Delivery failed: {ex}")
+
 
 def stimulate_minor_price_drift(current_price):
     drift = random.normalvariate(0, 0.2)
@@ -32,9 +35,10 @@ def stimulate_minor_price_drift(current_price):
     volume = random.randint(10, 500)
     return [current_price, volume]
 
+
 def generate_ticker_stream(ticker, base_price):
     current_price = base_price
-    
+
     # Loop until the main thread triggers the kill-switch
     while not shutdown_flag.is_set():
         [current_price, volume] = stimulate_minor_price_drift(current_price)
@@ -44,33 +48,40 @@ def generate_ticker_stream(ticker, base_price):
         tick.ticker = ticker
         tick.price = round(current_price, 2)
         tick.volume = volume
-        
+
         payload_bytes = tick.SerializeToString()
-        
+
         # Asynchronously send binary data to the broker
-        producer.send(TOPIC_NAME, value=payload_bytes).add_callback(on_success).add_errback(on_error)
-        
+        producer.send(TOPIC_NAME, value=payload_bytes).add_callback(
+            on_success
+        ).add_errback(on_error)
+
         # Throttle rate (~200 ticks per second per thread)
         time.sleep(0.005)
-        
-    print(f"[{ticker}] Stream gracefully shut down.")
+
+    print(f" [{ticker}]", end="", flush=True)
+
 
 if __name__ == "__main__":
-    print(f"Initializing binary Protobuf streaming to topic: {TOPIC_NAME}...")
+    print(f"🚀 Initializing binary Protobuf streaming to topic: {TOPIC_NAME}...")
     print("Press Ctrl+C to stop.")
-    
+
+    executor = ThreadPoolExecutor(max_workers=len(TICKERS))
+
+    print("Starting market tick streams:")
+    for ticker in TICKERS:
+        print(f" [{ticker}]", end="", flush=True)
+        base = random.uniform(50.0, 400.0)
+        executor.submit(generate_ticker_stream, ticker, base)
+
     try:
-        with ThreadPoolExecutor(max_workers=len(TICKERS)) as executor:
-            for ticker in TICKERS:
-                base = random.uniform(50.0, 400.0)
-                executor.submit(generate_ticker_stream, ticker, base)
-                
-            while True:
-                time.sleep(1)
-                
+        while True:
+            time.sleep(0.5)
     except KeyboardInterrupt:
         print("\n🛑 Shutting down cluster streams...")
         shutdown_flag.set()
+        executor.shutdown(wait=True)
+
         producer.flush()
         producer.close()
-        print("✅ Producer network connections closed safely.")
+        print("\n✅ Producer network connections closed safely.")
