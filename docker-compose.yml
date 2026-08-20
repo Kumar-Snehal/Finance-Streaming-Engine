@@ -1,0 +1,42 @@
+
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 1G
+      - --reserve-memory 0M
+      - --overprovisioned
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+    ports:
+      - "19092:19092"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "info"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # Auto-creates the topic on startup
+  init-topics:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: [ "sh", "-c" ]
+    command:
+      - |
+        rpk topic create market-ticks --brokers localhost:19092 --partitions 3
+
+  # Web UI to monitor messages
+  console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    entrypoint: ["sh", "-c", "exec /app/console"]
+    environment:
+      KAFKA_BROKERS: "redpanda:9092"
+    ports:
+      - "8080:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
