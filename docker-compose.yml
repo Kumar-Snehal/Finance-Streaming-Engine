@@ -35,8 +35,16 @@ services:
     entrypoint: ["sh", "-c", "exec /app/console"]
     environment:
       KAFKA_BROKERS: "redpanda:9092"
+      # Protobuf Configuration
+      KAFKA_PROTOBUF_ENABLED: "true"
+      KAFKA_PROTOBUF_FILESYSTEM_ENABLED: "true"
+      KAFKA_PROTOBUF_FILESYSTEM_PATHS: "/etc/protobuf"
+      KAFKA_PROTOBUF_MAPPINGS_0_TOPICNAME: "market-ticks-proto"
+      KAFKA_PROTOBUF_MAPPINGS_0_VALUEPROTOTYPE: "finance.MarketTick"
     ports:
       - "8080:8080"
+    volumes:
+      - ./:/etc/protobuf/
     depends_on:
       redpanda:
         condition: service_healthy

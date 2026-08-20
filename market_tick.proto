@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package finance;
+
+message MarketTick {
+  string timestamp = 1;
+  string ticker = 2;
+  double price = 3;
+  int32 volume = 4;
+}
