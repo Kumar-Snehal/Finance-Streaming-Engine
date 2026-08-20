@@ -1,41 +1,28 @@
-
 services:
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:latest
     command:
-      - redpanda start
+      - redpanda
+      - start
       - --smp 1
-      - --memory 1G
-      - --reserve-memory 0M
       - --overprovisioned
       - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
       - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:8083
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:8083
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:8084
     ports:
       - "19092:19092"
-    healthcheck:
-      test: ["CMD", "rpk", "cluster", "info"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
+      - "8081:8081"
+      - "8082:8082"
+      - "8083:8083"
+      - "8084:8084"
 
-  # Auto-creates the topic on startup
-  init-topics:
-    image: docker.redpanda.com/redpandadata/redpanda:latest
-    depends_on:
-      redpanda:
-        condition: service_healthy
-    entrypoint: [ "sh", "-c" ]
-    command:
-      - |
-        rpk topic create market-ticks --brokers localhost:19092 --partitions 3
-
-  # Web UI to monitor messages
   console:
     image: docker.redpanda.com/redpandadata/console:latest
     entrypoint: ["sh", "-c", "exec /app/console"]
     environment:
       KAFKA_BROKERS: "redpanda:9092"
-      # Protobuf Configuration
       KAFKA_PROTOBUF_ENABLED: "true"
       KAFKA_PROTOBUF_FILESYSTEM_ENABLED: "true"
       KAFKA_PROTOBUF_FILESYSTEM_PATHS: "/etc/protobuf"
@@ -46,5 +33,18 @@ services:
     volumes:
       - ./:/etc/protobuf/
     depends_on:
-      redpanda:
-        condition: service_healthy
+      - redpanda
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg14
+    environment:
+      POSTGRES_DB: finance
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+
+volumes:
+  timescaledb-data:
